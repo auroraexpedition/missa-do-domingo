@@ -1,12 +1,10 @@
 # Missa do Domingo
 
-PWA (site com cara de app) das missas de domingo em Fortaleza + o jornalzinho
-(liturgia oficial do dia). 100% estático — roda no GitHub Pages, sem servidor.
+PWA (site com cara de app) das missas de domingo das igrejas que a família
+frequenta, em Fortaleza. 100% estático e offline — roda no GitHub Pages.
+(A liturgia do dia / jornalzinho fica no app Angelus, à parte.)
 
 ## Telas
-- **Jornalzinho** — liturgia do domingo (antífonas, orações, leituras, salmo,
-  evangelho), buscada ao vivo da API pública `liturgia.up.railway.app`.
-  Textos litúrgicos © CNBB. Cor litúrgica confirmada pela própria API.
 - **Próximas missas** — feed do fim de semana a partir de agora; missas já
   celebradas ficam esmaecidas. Vigília de sábado (≥16h) vale pelo domingo.
 - **Igrejas & capelas** — consulta por igreja, com Google Maps e Waze.

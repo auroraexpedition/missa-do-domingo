@@ -3,7 +3,7 @@
    - App shell (html/js/ícones/manifest + CDN + fonte): cache-first.
    - Liturgia (API): stale-while-revalidate — mostra a última baixada
      offline e atualiza em segundo plano quando há rede. */
-const CACHE = "missa-domingo-v2";
+const CACHE = "missa-domingo-v6";
 const SHELL = [
   "./",
   "./index.html",
@@ -33,8 +33,7 @@ self.addEventListener("fetch", (e) => {
   const url = new URL(req.url);
 
   // Liturgia (API) + fontes Google: stale-while-revalidate
-  const swr = url.hostname.includes("liturgia.up.railway.app") ||
-              url.hostname.includes("fonts.googleapis.com") ||
+  const swr = url.hostname.includes("fonts.googleapis.com") ||
               url.hostname.includes("fonts.gstatic.com");
   if (swr) {
     e.respondWith(

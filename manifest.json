@@ -1,7 +1,7 @@
 {
   "name": "Missa do Domingo",
   "short_name": "Missa",
-  "description": "Missas de domingo em Fortaleza e a liturgia do dia.",
+  "description": "Missas de domingo das igrejas que a família frequenta, em Fortaleza.",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",

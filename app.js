@@ -1,16 +1,14 @@
-const { useState, useEffect, useMemo } = React;
+const { useState, useEffect, useMemo, useRef } = React;
 
 /* ================================================================== *
- *  MISSA DO DOMINGO — Fortaleza
- *  Home (menu) -> Jornalzinho / Próximas missas / Igrejas & capelas
+ *  MISSA DO DOMINGO — Fortaleza (app da família)
+ *  Home (menu) -> Próximas missas / Igrejas & capelas
  *
- *  • Missas: domingo + vigília de sábado (>=16h), que cumpre o
+ *  • Missas de domingo + vigília de sábado (>=16h), que cumpre o
  *    preceito dominical (CIC cân. 1248 §1). Dados estáticos, curados.
- *  • Jornalzinho: liturgia oficial do dia, buscada ao vivo da API
- *    pública liturgia.up.railway.app (CORS liberado). Estrutura
- *    inspirada na ORDEM DA MISSA (universal). Textos litúrgicos © CNBB.
- *  • Cor de destaque = cor litúrgica (calculada localmente; no
- *    jornalzinho, confirmada pela cor oficial que a API retorna).
+ *  • Cor de destaque = cor litúrgica da época (cálculo local).
+ *  • 100% offline: nenhuma chamada externa.
+ *  (A liturgia do dia / jornalzinho vive no app Angelus.)
  * ================================================================== */
 
 const CHURCHES = [
@@ -165,7 +163,6 @@ function MissaApp() {
         {screen === "home" && <Home season={season} now={now} next={next} go={setScreen} />}
         {screen === "proximas" && <Proximas season={season} now={now} masses={weekend} next={next} back={() => setScreen("home")} onChurch={(c) => setDetail({ church: c, dimPast: true })} />}
         {screen === "igrejas" && <Igrejas season={season} back={() => setScreen("home")} onChurch={(c) => setDetail({ church: c, dimPast: false })} />}
-        {screen === "jornalzinho" && <Jornalzinho season={season} now={now} back={() => setScreen("home")} />}
       </div>
       {detail && <ChurchSheet church={detail.church} dimPast={detail.dimPast} now={now} season={season} onClose={() => setDetail(null)} />}
     </div>
@@ -176,7 +173,6 @@ function MissaApp() {
 function Home({ season, now, next, go }) {
   const fullDate = `${WD[now.getDay()]}, ${now.getDate()} de ${MOL[now.getMonth()]}`;
   const items = [
-    { id: "jornalzinho", icon: Ico.book, title: "Jornalzinho", sub: "A liturgia do domingo, leitura a leitura" },
     { id: "proximas", icon: Ico.clock, title: "Próximas missas", sub: next ? `Próxima: ${fmtTime(next.time)} · ${next.church.name}` : "Missas do fim de semana" },
     { id: "igrejas", icon: Ico.church, title: "Igrejas & capelas", sub: `${CHURCHES.length} próximas · horários e rota` },
   ];
@@ -206,6 +202,20 @@ function Home({ season, now, next, go }) {
 
 /* --- PRÓXIMAS MISSAS (só este fim de semana; passadas esmaecidas) --- */
 function Proximas({ season, now, masses, next, back, onChurch }) {
+  const headRef = useRef(null);
+  const nextRef = useRef(null);
+  useEffect(() => {
+    const jump = () => {
+      if (nextRef.current && headRef.current) {
+        const y = nextRef.current.getBoundingClientRect().top + window.scrollY - headRef.current.offsetHeight - 10;
+        window.scrollTo({ top: Math.max(0, y) });
+      }
+    };
+    const t1 = setTimeout(jump, 150), t2 = setTimeout(jump, 550);
+    return () => { clearTimeout(t1); clearTimeout(t2); };
+  }, []);
+  const nextGroup = next ? masses.filter((m) => m.when.getTime() === next.when.getTime()) : [];
+  const multi = nextGroup.length > 1;
   const groups = [];
   for (const m of masses) {
     const dk = dayOnly(m.when).getTime();
@@ -215,29 +225,51 @@ function Proximas({ season, now, masses, next, back, onChurch }) {
   }
   return (
     <>
-      <TopBar title="Próximas missas" back={back} season={season} />
-      {next ? (
-        <section style={{ ...S.hero, borderLeftColor: season.color }}>
-          <div style={S.heroTop}>
-            <span style={{ ...S.eyebrow, color: season.color }}>Próxima missa</span>
-            {relativeLabel(next.when, now) && <span style={{ ...S.rel, color: season.color }}>{relativeLabel(next.when, now)}</span>}
-          </div>
-          <div style={S.heroTime}>{fmtTime(next.time)}</div>
-          <div style={S.heroChurch}>{next.church.name}</div>
-          <div style={S.heroMeta}>{dayHeading(dayOnly(next.when).getTime(), now)} · {next.church.area}
-            {next.vigil && <span style={{ ...S.tag, color: season.color, borderColor: season.color }}>vigília do domingo</span>}</div>
-          <button onClick={() => onChurch(next.church)} style={{ ...S.route, background: season.color }}>Ver igreja & rota</button>
-        </section>
-      ) : (
-        <div style={S.empty}>As missas deste domingo já foram celebradas.</div>
-      )}
+      <div ref={headRef} style={S.stickyHead}>
+        <TopBar title="Próximas missas" back={back} season={season} />
+        {!next && <div style={S.empty}>As missas deste domingo já foram celebradas.</div>}
+        {next && !multi && (
+          <section style={{ ...S.hero, borderLeftColor: season.color, marginBottom: 6 }}>
+            <div style={S.heroTop}>
+              <span style={{ ...S.eyebrow, color: season.color }}>Próxima missa</span>
+              {relativeLabel(next.when, now) && <span style={{ ...S.rel, color: season.color }}>{relativeLabel(next.when, now)}</span>}
+            </div>
+            <div style={S.heroTime}>{fmtTime(next.time)}</div>
+            <div style={S.heroChurch}>{next.church.name}</div>
+            <div style={S.heroMeta}>{dayHeading(dayOnly(next.when).getTime(), now)} · {next.church.area}
+              {next.vigil && <span style={{ ...S.tag, color: season.color, borderColor: season.color }}>vigília do domingo</span>}</div>
+            <button onClick={() => onChurch(next.church)} style={{ ...S.route, background: season.color }}>Ver igreja & rota</button>
+          </section>
+        )}
+        {next && multi && (
+          <section style={{ ...S.hero, borderLeftColor: season.color, paddingBottom: 10, marginBottom: 6 }}>
+            <div style={S.heroTop}>
+              <span style={{ ...S.eyebrow, color: season.color }}>Próxima missa</span>
+              {relativeLabel(next.when, now) && <span style={{ ...S.rel, color: season.color }}>{relativeLabel(next.when, now)}</span>}
+            </div>
+            <div style={S.heroTimeRow}>
+              <span style={S.heroTimeSm}>{fmtTime(next.time)}</span>
+              <span style={S.heroCount}>{next.vigil ? "vigília · " : ""}{nextGroup.length} igrejas</span>
+            </div>
+            <div style={S.miniList}>
+              {nextGroup.map((m) => (
+                <button key={m.church.id} onClick={() => onChurch(m.church)} style={S.miniRow}>
+                  <span style={S.miniName}>{m.church.name}</span>
+                  <span style={S.miniArea}>{m.church.area}</span>
+                  <span style={{ color: "#C4BAA3", display: "flex" }}>{Ico.chev()}</span>
+                </button>
+              ))}
+            </div>
+          </section>
+        )}
+      </div>
       {groups.map((g) => (
         <section key={g.dk} style={S.group}>
           <h2 style={S.groupTitle}>{dayHeading(g.dk, now)}{g.items[0].vigil ? " · vigília" : ""}</h2>
           {g.items.map((m) => {
             const past = m.when < now, isNext = next && m.key === next.key;
             return (
-              <button key={m.key} onClick={() => onChurch(m.church)}
+              <button key={m.key} ref={isNext ? nextRef : null} onClick={() => onChurch(m.church)}
                 style={{ ...S.row, ...(past ? S.rowPast : {}), ...(isNext ? { borderColor: season.color } : {}) }}>
                 <div style={{ ...S.rowTime, color: isNext ? season.color : INK }}>{fmtTime(m.time)}</div>
                 <div style={S.rowBody}>
@@ -275,138 +307,6 @@ function Igrejas({ season, back, onChurch }) {
       })}
       <footer style={S.footer}>Todas em Aldeota / Dunas — bem próximas entre si.</footer>
     </>
-  );
-}
-
-/* --- JORNALZINHO (liturgia ao vivo, layout ordem da missa) --------- */
-function Jornalzinho({ season, now, back }) {
-  const [lit, setLit] = useState(null);
-  const [state, setState] = useState("loading"); // loading | ok | error
-  const sun = targetSunday(now);
-
-  useEffect(() => {
-    let alive = true;
-    const url = `https://liturgia.up.railway.app/v2/?dia=${sun.getDate()}&mes=${sun.getMonth() + 1}&ano=${sun.getFullYear()}`;
-    fetch(url)
-      .then((r) => { if (!r.ok) throw new Error("http " + r.status); return r.json(); })
-      .then((d) => { if (alive) { setLit(d); setState("ok"); } })
-      .catch(() => { if (alive) setState("error"); });
-    return () => { alive = false; };
-  }, [sun.getTime()]);
-
-  const theme = (lit && corToTheme(lit.cor)) || season;
-  const cycle = sundayCycle(sun);
-  const L = lit?.leituras || {};
-  const first = (x) => (Array.isArray(x) ? x[0] : x) || null;
-  const dateBR = `${String(sun.getDate()).padStart(2,"0")}/${String(sun.getMonth()+1).padStart(2,"0")}/${sun.getFullYear()}`;
-
-  return (
-    <>
-      <TopBar title="Jornalzinho" back={back} season={theme} />
-
-      {/* MASTHEAD */}
-      <div style={{ ...S.mast, borderColor: theme.color }}>
-        <div style={S.mastEyebrow}>
-          <span>ANO {cycle}</span>
-          <span style={{ color: theme.color, fontWeight: 700 }}>{(lit && corToTheme(lit.cor)?.label?.toUpperCase()) || season.label.toUpperCase()}</span>
-          <span>{dateBR}</span>
-        </div>
-        <div style={{ ...S.mastTitle, color: theme.color }}>Liturgia do Domingo</div>
-        {lit && <div style={S.mastLit}>{lit.liturgia}</div>}
-      </div>
-
-      {state === "loading" && <div style={S.empty}>Carregando a liturgia…</div>}
-      {state === "error" && (
-        <div style={S.noteWarn}>
-          Não consegui carregar a liturgia agora (sem rede ou bloqueado neste preview).
-          Publicado no GitHub, funciona normalmente — a API libera acesso direto.
-        </div>
-      )}
-
-      {state === "ok" && lit && (
-        <>
-          <Movement title="Ritos Iniciais" theme={theme} />
-          <Prop n="1" title="Antífona de Entrada" theme={theme} body={lit.antifonas?.entrada} italic />
-          <Fixed title="Ato Penitencial" theme={theme}>
-            <PA pr="Senhor, tende piedade de nós." as="Senhor, tende piedade de nós." />
-            <PA pr="Cristo, tende piedade de nós." as="Cristo, tende piedade de nós." />
-            <PA pr="Senhor, tende piedade de nós." as="Senhor, tende piedade de nós." />
-            <div style={S.small}>A fórmula pode variar conforme o celebrante.</div>
-          </Fixed>
-          <Fixed title="Glória" theme={theme}>
-            <p style={S.pray}>Glória a Deus nas alturas, e paz na terra aos homens por Ele amados. Senhor Deus, rei dos céus, Deus Pai todo-poderoso: nós vos louvamos, nós vos bendizemos, nós vos adoramos, nós vos glorificamos, nós vos damos graças por vossa imensa glória. Senhor Jesus Cristo, Filho Unigênito, Senhor Deus, Cordeiro de Deus, Filho de Deus Pai. Vós que tirais o pecado do mundo, tende piedade de nós. Vós que tirais o pecado do mundo, acolhei a nossa súplica. Vós que estais à direita do Pai, tende piedade de nós. Só vós sois o Santo, só vós, o Senhor, só vós, o Altíssimo, Jesus Cristo, com o Espírito Santo, na glória de Deus Pai. Amém.</p>
-          </Fixed>
-          <Prop n="2" title="Oração do Dia" theme={theme} body={lit.oracoes?.coleta} resp="Amém." />
-
-          <Movement title="Liturgia da Palavra" theme={theme} />
-          <Reading n="3" theme={theme} label="1ª Leitura" it={first(L.primeiraLeitura)} resp={["Palavra do Senhor.", "Graças a Deus!"]} />
-          <Psalm n="4" theme={theme} it={first(L.salmo)} />
-          {first(L.segundaLeitura) && <Reading n="5" theme={theme} label="2ª Leitura" it={first(L.segundaLeitura)} resp={["Palavra do Senhor.", "Graças a Deus!"]} />}
-          <Prop n="6" title="Aclamação ao Evangelho" theme={theme} body="Aleluia, aleluia, aleluia." italic />
-          <Reading n="7" theme={theme} label="Evangelho" it={first(L.evangelho)} gospel resp={["Palavra da Salvação.", "Glória a vós, Senhor!"]} />
-          <Fixed title="Profissão de Fé" theme={theme}>
-            <p style={S.pray}>Creio em Deus Pai todo-poderoso, criador do céu e da terra; e em Jesus Cristo, seu único Filho, nosso Senhor; que foi concebido pelo poder do Espírito Santo, nasceu da Virgem Maria; padeceu sob Pôncio Pilatos, foi crucificado, morto e sepultado; desceu à mansão dos mortos, ressuscitou ao terceiro dia; subiu aos céus, está sentado à direita de Deus Pai todo-poderoso, donde há de vir a julgar os vivos e os mortos. Creio no Espírito Santo, na santa Igreja católica, na comunhão dos santos, na remissão dos pecados, na ressurreição da carne, na vida eterna. Amém.</p>
-          </Fixed>
-
-          <Movement title="Liturgia Eucarística" theme={theme} />
-          <Prop n="8" title="Sobre as Oferendas" theme={theme} body={lit.oracoes?.oferendas} resp="Amém." />
-          <Prop n="9" title="Antífona da Comunhão" theme={theme} body={lit.antifonas?.comunhao} italic />
-          <Prop n="10" title="Depois da Comunhão" theme={theme} body={lit.oracoes?.comunhao} resp="Amém." />
-
-          <footer style={S.footer}>
-            Textos litúrgicos © CNBB · liturgia via API pública.<br/>
-            Layout inspirado na ordem da missa (não reproduz "O Domingo"/Paulus).
-          </footer>
-        </>
-      )}
-    </>
-  );
-}
-
-/* subcomponentes do jornalzinho */
-const Movement = ({ title, theme }) => (
-  <div style={{ ...S.movement, background: theme.soft, color: theme.color }}>{title}</div>
-);
-const NumBadge = ({ n, theme }) => (<span style={{ ...S.badge, background: theme.color }}>{n}</span>);
-function Prop({ n, title, body, theme, italic, resp }) {
-  if (!body) return null;
-  return (
-    <div style={S.sec}>
-      <div style={S.secHead}><NumBadge n={n} theme={theme} /><span style={{ ...S.secTitle, color: theme.color }}>{title}</span></div>
-      <p style={{ ...S.pray, ...(italic ? { fontStyle: "italic" } : {}) }}>{body}</p>
-      {resp && <div style={S.resp}><b>AS:</b> {resp}</div>}
-    </div>
-  );
-}
-function Reading({ n, label, it, resp, gospel, theme }) {
-  if (!it) return null;
-  return (
-    <div style={S.sec}>
-      <div style={S.secHead}><NumBadge n={n} theme={theme} /><span style={{ ...S.secTitle, color: theme.color }}>{label} <span style={S.ref}>{it.referencia}</span></span></div>
-      {it.titulo && <div style={S.readingTitle}>{it.titulo}.</div>}
-      <p style={S.pray}>{it.texto}</p>
-      <div style={S.resp}><b>{gospel ? "PR" : "—"}:</b> {resp[0]} &nbsp; <b>AS:</b> {resp[1]}</div>
-    </div>
-  );
-}
-function Psalm({ n, it, theme }) {
-  if (!it) return null;
-  const strophes = (it.texto || "").split("\n").filter((s) => s.trim());
-  return (
-    <div style={S.sec}>
-      <div style={S.secHead}><NumBadge n={n} theme={theme} /><span style={{ ...S.secTitle, color: theme.color }}>Salmo Responsorial <span style={S.ref}>{it.referencia}</span></span></div>
-      <div style={{ ...S.refrao, borderColor: theme.color }}>{it.refrao}</div>
-      {strophes.map((s, i) => <p key={i} style={S.pray}>{s.replace(/^–\s*/, "")}</p>)}
-    </div>
-  );
-}
-const PA = ({ pr, as }) => (<div style={S.resp}><b>PR:</b> {pr} <b style={{ marginLeft: 6 }}>AS:</b> {as}</div>);
-function Fixed({ title, children, theme }) {
-  return (
-    <details style={S.details}>
-      <summary style={{ ...S.summary, color: theme.color }}>{title} <span style={S.summaryHint}>textos fixos ▾</span></summary>
-      <div style={{ marginTop: 8 }}>{children}</div>
-    </details>
   );
 }
 
@@ -502,6 +402,14 @@ const S = {
   route: { display: "inline-block", marginTop: 15, color: "#FBF8F1", fontSize: 17, fontWeight: 600, padding: "10px 18px", borderRadius: 10 },
   empty: { textAlign: "center", color: "#8A8272", fontStyle: "italic", padding: "26px 10px", fontSize: 17 },
 
+  stickyHead: { position: "sticky", top: 0, zIndex: 10, background: PARCH, margin: "0 -18px", padding: "0 18px 10px", boxShadow: "0 8px 12px -10px rgba(0,0,0,0.16)" },
+  heroTimeRow: { display: "flex", alignItems: "baseline", gap: 10, marginTop: 6 },
+  heroTimeSm: { fontFamily: display, fontSize: 36, lineHeight: 1 },
+  heroCount: { fontSize: 14.5, color: "#6E6656" },
+  miniList: { display: "flex", flexDirection: "column", gap: 7, marginTop: 12 },
+  miniRow: { width: "100%", display: "flex", alignItems: "center", gap: 8, padding: "9px 11px", background: PARCH, border: "1px solid " + LINE, borderRadius: 9, textAlign: "left" },
+  miniName: { flex: 1, fontSize: 16.5, fontWeight: 600, color: INK },
+  miniArea: { fontSize: 13, color: "#8A8272", marginRight: 4 },
   group: { marginBottom: 20 },
   groupTitle: { fontFamily: display, fontSize: 18, letterSpacing: "0.1em", textTransform: "uppercase", color: "#8A8272", margin: "0 0 10px", paddingBottom: 6, borderBottom: "1px solid " + LINE },
   row: { width: "100%", display: "flex", alignItems: "center", gap: 14, background: CARD, border: "1px solid " + LINE, borderRadius: 12, padding: "13px 14px", marginBottom: 8, color: INK, textAlign: "left" },
@@ -524,7 +432,6 @@ const S = {
   navRow: { display: "flex", gap: 10, marginTop: 24 },
   navBtn: { flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 8, padding: "12px 0", borderRadius: 11, fontSize: 17.5, fontWeight: 600, color: "#FBF8F1" },
 
-  /* jornalzinho */
   mast: { borderLeft: "5px solid", paddingLeft: 14, marginBottom: 18 },
   mastEyebrow: { display: "flex", gap: 10, flexWrap: "wrap", fontSize: 12.5, letterSpacing: "0.1em", color: "#9A917E", textTransform: "uppercase" },
   mastTitle: { fontFamily: display, fontSize: 32.5, lineHeight: 1.05, marginTop: 5 },
@@ -538,6 +445,9 @@ const S = {
   readingTitle: { fontSize: 18, fontStyle: "italic", color: "#6E6656", marginBottom: 6 },
   pray: { fontSize: 21, lineHeight: 1.62, margin: "0 0 7px", color: "#3A342D" },
   resp: { fontSize: 18, color: "#6E6656", marginTop: 4 },
+  sayGroup: { marginTop: 8, marginBottom: 4 },
+  sayLine: { fontSize: 18.5, lineHeight: 1.5, color: "#3A342D", margin: "0 0 3px" },
+  sayWho: { fontWeight: 700, marginRight: 4 },
   refrao: { borderLeft: "3px solid", paddingLeft: 11, fontStyle: "italic", fontSize: 21, margin: "0 0 10px", color: INK, fontWeight: 500 },
   details: { background: CARD, border: "1px solid " + LINE, borderRadius: 10, padding: "11px 13px", marginBottom: 18 },
   summary: { fontFamily: display, fontSize: 18, display: "flex", justifyContent: "space-between", alignItems: "center" },
