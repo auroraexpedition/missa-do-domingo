@@ -69,7 +69,7 @@ function liturgicalSeason(now) {
 }
 function sundayCycle(now) {
   const litYear = dayOnly(now) >= advent1Of(now.getFullYear()) ? now.getFullYear() + 1 : now.getFullYear();
-  return ["B", "A", "C"][litYear % 3];
+  return ["C", "A", "B"][litYear % 3];
 }
 function corToTheme(cor) {
   const c = (cor || "").toLowerCase();

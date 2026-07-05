@@ -3,7 +3,7 @@
    - App shell (html/js/ícones/manifest + CDN + fonte): cache-first.
    - Liturgia (API): stale-while-revalidate — mostra a última baixada
      offline e atualiza em segundo plano quando há rede. */
-const CACHE = "missa-domingo-v6";
+const CACHE = "missa-domingo-v7";
 const SHELL = [
   "./",
   "./index.html",
